@@ -1,7 +1,7 @@
+import { routes } from "./routes/routes";
+
 const server = Bun.serve({
-    routes: {
-        "/": () => new Response("Kodevagt 0.0.1"),
-    }
+    routes,
 });
 
 console.log(`Server running at ${server.url}`);
