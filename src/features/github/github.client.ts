@@ -1,16 +1,15 @@
-import { config } from "../../shared/config.ts";
-import type { FileContent, FileNode, FileTree, RepoInfo, FileParams, RepoParams, TreeParams } from "./github.types.ts";
+import type { FileContent, FileTree, RepoInfo, FileParams, RepoParams, TreeParams } from "./github.types.ts";
 
 const GITHUB_API = "https://api.github.com";
 
-async function githubFetch<T>(path: string): Promise<T> {
-    if (!config.githubToken) {
-        throw Object.assign(new Error("Missing GITHUB_TOKEN"), { status: 401 });
-    }
+export type GitHubAuth = {
+    token: string;
+};
 
+async function githubFetch<T>(path: string, auth: GitHubAuth): Promise<T> {
     const response = await fetch(`${GITHUB_API}${path}`, {
         headers: {
-            Authorization: `Bearer ${config.githubToken}`,
+            Authorization: `Bearer ${auth.token}`,
             Accept: "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
         },
@@ -26,7 +25,8 @@ async function githubFetch<T>(path: string): Promise<T> {
     return response.json() as Promise<T>;
 }
 
-export async function getRepo({ owner, repo }: RepoParams): Promise<RepoInfo> {
+export async function getRepo(params: RepoParams, auth: GitHubAuth): Promise<RepoInfo> {
+    const { owner, repo } = params;
     const data = await githubFetch<{
         id: number;
         name: string;
@@ -37,7 +37,7 @@ export async function getRepo({ owner, repo }: RepoParams): Promise<RepoInfo> {
         html_url: string;
         language: string | null;
         stargazers_count: number;
-    }>(`/repos/${owner}/${repo}`);
+    }>(`/repos/${owner}/${repo}`, auth);
 
     return {
         id: data.id,
@@ -52,8 +52,9 @@ export async function getRepo({ owner, repo }: RepoParams): Promise<RepoInfo> {
     };
 }
 
-export async function getTree({ owner, repo, ref }: TreeParams): Promise<FileTree> {
-    const branch = ref ?? (await getRepo({ owner, repo })).defaultBranch;
+export async function getTree(params: TreeParams, auth: GitHubAuth): Promise<FileTree> {
+    const { owner, repo, ref } = params;
+    const branch = ref ?? (await getRepo({ owner, repo }, auth)).defaultBranch;
 
     const data = await githubFetch<{
         sha: string;
@@ -64,7 +65,7 @@ export async function getTree({ owner, repo, ref }: TreeParams): Promise<FileTre
             size?: number;
             sha: string;
         }>;
-    }>(`/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`);
+    }>(`/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`, auth);
 
     return {
         sha: data.sha,
@@ -82,7 +83,8 @@ export async function getTree({ owner, repo, ref }: TreeParams): Promise<FileTre
     };
 }
 
-export async function getFileContent({ owner, repo, path, ref }: FileParams): Promise<FileContent> {
+export async function getFileContent(params: FileParams, auth: GitHubAuth): Promise<FileContent> {
+    const { owner, repo, path, ref } = params;
     const refPart = ref ? `?ref=${encodeURIComponent(ref)}` : "";
 
     const data = await githubFetch<{
@@ -91,7 +93,7 @@ export async function getFileContent({ owner, repo, path, ref }: FileParams): Pr
         encoding: string;
         size: number;
         sha: string;
-    }>(`/repos/${owner}/${repo}/contents/${path}${refPart}`);
+    }>(`/repos/${owner}/${repo}/contents/${path}${refPart}`, auth);
 
     const decoded = Buffer.from(data.content, "base64").toString("utf-8");
 

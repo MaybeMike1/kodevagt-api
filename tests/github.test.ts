@@ -1,28 +1,25 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
-import { githubRoutes } from "../src/features/github/github.routes.ts";
+import { app } from "../src/app.ts";
 import type { RepoInfo, FileTree, FileContent } from "../src/features/github/github.types.ts";
 import type { ApiError } from "../src/shared/errors.ts";
 import { installGitHubFetchMock } from "./support/github-api-mock.ts";
 
 describe("GitHub routes", () => {
-    let server: ReturnType<typeof Bun.serve>;
     let restoreFetch: () => void;
 
     beforeAll(() => {
         process.env.GITHUB_TOKEN = "test-token";
         restoreFetch = installGitHubFetchMock();
-        server = Bun.serve({ port: 0, routes: { ...githubRoutes } });
     });
 
     afterAll(() => {
-        server.stop();
         restoreFetch();
         delete process.env.GITHUB_TOKEN;
     });
 
     describe("GET /github/repos/:owner/:repo", () => {
         test("returnerer repo metadata", async () => {
-            const res = await fetch(`${server.url}/github/repos/octocat/Hello-World`);
+            const res = await app.request("/github/repos/octocat/Hello-World");
             const body = (await res.json()) as RepoInfo;
 
             expect(res.status).toBe(200);
@@ -33,21 +30,35 @@ describe("GitHub routes", () => {
         });
 
         test("returnerer 404 hvis repo ikke eksisterer", async () => {
-            const res = await fetch(`${server.url}/github/repos/octocat/not-found`);
+            const res = await app.request("/github/repos/octocat/not-found");
             const body = (await res.json()) as ApiError;
 
             expect(res.status).toBe(404);
             expect(body.error).toBeString();
         });
 
-        test("returnerer 401 hvis GITHUB_TOKEN mangler", async () => {
+        test("returnerer 401 hvis ingen token er tilgængelig", async () => {
             delete process.env.GITHUB_TOKEN;
 
-            const res = await fetch(`${server.url}/github/repos/octocat/Hello-World`);
+            const res = await app.request("/github/repos/octocat/Hello-World");
             const body = (await res.json()) as ApiError;
 
             expect(res.status).toBe(401);
-            expect(body.error).toBeString();
+            expect(body.error).toContain("Not authenticated");
+
+            process.env.GITHUB_TOKEN = "test-token";
+        });
+
+        test("accepterer Bearer token i Authorization header", async () => {
+            delete process.env.GITHUB_TOKEN;
+
+            const res = await app.request("/github/repos/octocat/Hello-World", {
+                headers: { Authorization: "Bearer test-token" },
+            });
+            const body = (await res.json()) as RepoInfo;
+
+            expect(res.status).toBe(200);
+            expect(body.name).toBe("Hello-World");
 
             process.env.GITHUB_TOKEN = "test-token";
         });
@@ -55,7 +66,7 @@ describe("GitHub routes", () => {
 
     describe("GET /github/repos/:owner/:repo/tree", () => {
         test("returnerer rekursivt fil-træ", async () => {
-            const res = await fetch(`${server.url}/github/repos/octocat/Hello-World/tree`);
+            const res = await app.request("/github/repos/octocat/Hello-World/tree");
             const body = (await res.json()) as FileTree;
 
             expect(res.status).toBe(200);
@@ -65,7 +76,7 @@ describe("GitHub routes", () => {
         });
 
         test("fil-træet indeholder korrekte felter", async () => {
-            const res = await fetch(`${server.url}/github/repos/octocat/Hello-World/tree`);
+            const res = await app.request("/github/repos/octocat/Hello-World/tree");
             const body = (await res.json()) as FileTree;
             const readme = body.files.find((f) => f.path === "README.md");
 
@@ -77,8 +88,8 @@ describe("GitHub routes", () => {
 
     describe("GET /github/repos/:owner/:repo/file", () => {
         test("returnerer fil-indhold som utf-8", async () => {
-            const res = await fetch(
-                `${server.url}/github/repos/octocat/Hello-World/file?path=README.md`,
+            const res = await app.request(
+                "/github/repos/octocat/Hello-World/file?path=README.md",
             );
             const body = (await res.json()) as FileContent;
 
@@ -89,7 +100,7 @@ describe("GitHub routes", () => {
         });
 
         test("returnerer 400 hvis path query-param mangler", async () => {
-            const res = await fetch(`${server.url}/github/repos/octocat/Hello-World/file`);
+            const res = await app.request("/github/repos/octocat/Hello-World/file");
             const body = (await res.json()) as ApiError;
 
             expect(res.status).toBe(400);

@@ -2,22 +2,22 @@ import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import { getRepo, getTree, getFileContent } from "../src/features/github/github.client.ts";
 import { installGitHubFetchMock } from "./support/github-api-mock.ts";
 
+const testAuth = { token: "test-token" };
+
 describe("github.client", () => {
     let restoreFetch: () => void;
 
     beforeAll(() => {
-        process.env.GITHUB_TOKEN = "test-token";
         restoreFetch = installGitHubFetchMock();
     });
 
     afterAll(() => {
         restoreFetch();
-        delete process.env.GITHUB_TOKEN;
     });
 
     describe("getRepo", () => {
         test("mapper GitHub API-svar til RepoInfo", async () => {
-            const repo = await getRepo({ owner: "octocat", repo: "Hello-World" });
+            const repo = await getRepo({ owner: "octocat", repo: "Hello-World" }, testAuth);
 
             expect(repo.id).toBe(1296269);
             expect(repo.name).toBe("Hello-World");
@@ -28,25 +28,15 @@ describe("github.client", () => {
         });
 
         test("kaster 404 når repo ikke findes", async () => {
-            await expect(getRepo({ owner: "octocat", repo: "not-found" })).rejects.toMatchObject({
+            await expect(getRepo({ owner: "octocat", repo: "not-found" }, testAuth)).rejects.toMatchObject({
                 status: 404,
             });
-        });
-
-        test("kaster 401 når GITHUB_TOKEN mangler", async () => {
-            delete process.env.GITHUB_TOKEN;
-
-            await expect(getRepo({ owner: "octocat", repo: "Hello-World" })).rejects.toMatchObject({
-                status: 401,
-            });
-
-            process.env.GITHUB_TOKEN = "test-token";
         });
     });
 
     describe("getTree", () => {
         test("returnerer fil-træ og filtrerer ugyldige noder", async () => {
-            const tree = await getTree({ owner: "octocat", repo: "Hello-World" });
+            const tree = await getTree({ owner: "octocat", repo: "Hello-World" }, testAuth);
 
             expect(tree.sha).toBe("abc123");
             expect(tree.truncated).toBe(false);
@@ -55,7 +45,7 @@ describe("github.client", () => {
         });
 
         test("bruger default branch fra getRepo når ref mangler", async () => {
-            const tree = await getTree({ owner: "octocat", repo: "Hello-World" });
+            const tree = await getTree({ owner: "octocat", repo: "Hello-World" }, testAuth);
 
             expect(tree.files.find((f) => f.path === "README.md")).toEqual({
                 path: "README.md",
@@ -68,11 +58,10 @@ describe("github.client", () => {
 
     describe("getFileContent", () => {
         test("dekoder base64-indhold til utf-8", async () => {
-            const file = await getFileContent({
-                owner: "octocat",
-                repo: "Hello-World",
-                path: "README.md",
-            });
+            const file = await getFileContent(
+                { owner: "octocat", repo: "Hello-World", path: "README.md" },
+                testAuth,
+            );
 
             expect(file.path).toBe("README.md");
             expect(file.content).toBe("# Hello World\n");

@@ -1,10 +1,10 @@
-import { githubRoutes } from "./features/github/github.routes.ts";
+import { app } from "./app.ts";
+
+const port = Number(process.env.PORT) || 3000;
 
 const server = Bun.serve({
-    routes: {
-        "/": () => new Response("Kodevagt 0.0.1"),
-        ...githubRoutes,
-    },
+    port,
+    fetch: app.fetch,
 });
 
 console.log(`Server running at ${server.url}`);
