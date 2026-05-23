@@ -8,12 +8,14 @@ describe("GitHub OAuth", () => {
         process.env.GITHUB_CLIENT_ID = "test-client-id";
         process.env.GITHUB_CLIENT_SECRET = "test-client-secret";
         process.env.GITHUB_OAUTH_REDIRECT_URI = "http://localhost:3000/auth/github/callback";
+        process.env.GITHUB_OAUTH_FRONTEND_REDIRECT_URI = "http://localhost:1420/auth/callback";
     });
 
     afterEach(() => {
         delete process.env.GITHUB_CLIENT_ID;
         delete process.env.GITHUB_CLIENT_SECRET;
         delete process.env.GITHUB_OAUTH_REDIRECT_URI;
+        delete process.env.GITHUB_OAUTH_FRONTEND_REDIRECT_URI;
         global.fetch = originalFetch;
     });
 
@@ -28,7 +30,7 @@ describe("GitHub OAuth", () => {
         expect(res.headers.get("set-cookie")).toContain("oauth_state=");
     });
 
-    test("GET /auth/github/callback sætter github_token cookie", async () => {
+    test("GET /auth/github/callback redirecter token til frontend URL", async () => {
         const mockFetch = (
             input: Parameters<typeof fetch>[0],
             init?: Parameters<typeof fetch>[1],
@@ -51,16 +53,46 @@ describe("GitHub OAuth", () => {
 
         const callbackRes = await app.request(
             `/auth/github/callback?code=test-code&state=${state}`,
-            { headers: { Cookie: loginRes.headers.get("set-cookie") ?? "" } },
+            { headers: { Cookie: loginRes.headers.get("set-cookie") ?? "" }, redirect: "manual" },
         );
 
         expect(callbackRes.status).toBe(302);
-        expect(callbackRes.headers.get("location")).toBe("/");
-        expect(callbackRes.headers.get("set-cookie")).toContain("github_token=oauth-access-token");
+        const location = callbackRes.headers.get("location")!;
+        expect(location).toStartWith("http://localhost:1420/auth/callback#");
+        expect(location).toContain("access_token=oauth-access-token");
+        expect(location).toContain("token_type=bearer");
+        expect(callbackRes.headers.get("set-cookie")).not.toContain("github_token");
+    });
+
+    test("GET /auth/github/callback?format=json returnerer token som JSON", async () => {
+        global.fetch = Object.assign(
+            (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+                if (input.toString() === "https://github.com/login/oauth/access_token") {
+                    return Promise.resolve(
+                        Response.json({ access_token: "oauth-access-token", token_type: "bearer" }),
+                    );
+                }
+                return originalFetch(input, init);
+            },
+            { preconnect: originalFetch.preconnect },
+        );
+
+        const loginRes = await app.request("/auth/github", { redirect: "manual" });
+        const state = new URL(loginRes.headers.get("location")!).searchParams.get("state");
+
+        const callbackRes = await app.request(
+            `/auth/github/callback?code=test-code&state=${state}&format=json`,
+            { headers: { Cookie: loginRes.headers.get("set-cookie") ?? "" } },
+        );
+
+        expect(callbackRes.status).toBe(200);
+        const body = (await callbackRes.json()) as { access_token: string; token_type: string };
+        expect(body.access_token).toBe("oauth-access-token");
+        expect(body.token_type).toBe("bearer");
     });
 
     test("GET /auth/github/callback afviser ugyldig state", async () => {
-        const res = await app.request("/auth/github/callback?code=test-code&state=wrong");
+        const res = await app.request("/auth/github/callback?code=test-code&state=wrong&format=json");
 
         expect(res.status).toBe(400);
         const body = (await res.json()) as { error: string };

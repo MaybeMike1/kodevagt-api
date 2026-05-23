@@ -4,8 +4,6 @@ import { config, isOAuthConfigured } from "../../shared/config.ts";
 import { buildAuthorizeUrl, exchangeCodeForToken } from "./auth.service.ts";
 
 const OAUTH_STATE_COOKIE = "oauth_state";
-const GITHUB_TOKEN_COOKIE = "github_token";
-const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
 function cookieOptions(maxAge: number) {
     return {
@@ -15,6 +13,22 @@ function cookieOptions(maxAge: number) {
         path: "/",
         maxAge,
     };
+}
+
+function redirectToFrontendWithToken(accessToken: string): string {
+    const base = config.githubOAuthFrontendRedirectUri.replace(/\/$/, "");
+    const params = new URLSearchParams({
+        access_token: accessToken,
+        token_type: "bearer",
+    });
+    return `${base}#${params.toString()}`;
+}
+
+function redirectToFrontendWithError(error: string, description?: string): string {
+    const url = new URL(config.githubOAuthFrontendRedirectUri);
+    url.searchParams.set("error", error);
+    if (description) url.searchParams.set("error_description", description);
+    return url.toString();
 }
 
 export const authApp = new Hono();
@@ -42,40 +56,52 @@ authApp.get("/github/callback", async (c) => {
     deleteCookie(c, OAUTH_STATE_COOKIE, { path: "/" });
 
     if (oauthError) {
-        return c.json(
-            { error: c.req.query("error_description") ?? oauthError, status: 400 },
-            400,
-        );
+        const description = c.req.query("error_description");
+        if (c.req.query("format") === "json") {
+            return c.json(
+                { error: description ?? oauthError, status: 400 },
+                400,
+            );
+        }
+        return c.redirect(redirectToFrontendWithError(oauthError, description));
     }
 
     if (!code || !state || !savedState || state !== savedState) {
-        return c.json({ error: "Invalid OAuth state", status: 400 }, 400);
+        if (c.req.query("format") === "json") {
+            return c.json({ error: "Invalid OAuth state", status: 400 }, 400);
+        }
+        return c.redirect(redirectToFrontendWithError("invalid_state", "Invalid OAuth state"));
     }
 
     try {
         const accessToken = await exchangeCodeForToken(code);
-        setCookie(c, GITHUB_TOKEN_COOKIE, accessToken, cookieOptions(COOKIE_MAX_AGE));
-        return c.redirect("/");
+
+        if (c.req.query("format") === "json") {
+            return c.json({ access_token: accessToken, token_type: "bearer" });
+        }
+
+        return c.redirect(redirectToFrontendWithToken(accessToken));
     } catch (err) {
         const rawStatus = (err as { status?: number }).status;
         const statusCode = rawStatus === 400 ? 400 : 500;
         const message = err instanceof Error ? err.message : "OAuth token exchange failed";
-        return c.json({ error: message, status: statusCode }, statusCode);
+
+        if (c.req.query("format") === "json") {
+            return c.json({ error: message, status: statusCode }, statusCode);
+        }
+
+        return c.redirect(redirectToFrontendWithError("token_exchange_failed", message));
     }
 });
 
-authApp.get("/github/logout", (c) => {
-    deleteCookie(c, GITHUB_TOKEN_COOKIE, { path: "/" });
-    return c.json({ ok: true });
-});
-
 authApp.get("/github/status", (c) => {
-    const hasCookie = Boolean(getCookie(c, GITHUB_TOKEN_COOKIE));
+    const authorization = c.req.header("Authorization");
+    const hasBearer = authorization?.startsWith("Bearer ") ?? false;
     const hasEnvToken = Boolean(config.githubToken);
 
     return c.json({
-        authenticated: hasCookie || hasEnvToken,
+        authenticated: hasBearer || hasEnvToken,
         oauthConfigured: isOAuthConfigured(),
-        method: hasCookie ? "oauth" : hasEnvToken ? "env" : null,
+        method: hasBearer ? "bearer" : hasEnvToken ? "env" : null,
     });
 });

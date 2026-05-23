@@ -44,7 +44,7 @@ describe("GitHub routes", () => {
             const body = (await res.json()) as ApiError;
 
             expect(res.status).toBe(401);
-            expect(body.error).toContain("Not authenticated");
+            expect(body.error).toContain("Authorization: Bearer");
 
             process.env.GITHUB_TOKEN = "test-token";
         });
