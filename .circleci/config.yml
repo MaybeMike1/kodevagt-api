@@ -1,22 +1,22 @@
-name: Backend CI
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+version: 2.1
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-
+    docker:
+      - image: oven/bun:1.2.13
     steps:
-      - uses: actions/checkout@v4
+      - checkout
+      - run:
+          name: Install dependencies
+          command: bun install --frozen-lockfile
+      - run:
+          name: Test
+          command: bun run test
+      - run:
+          name: Build
+          command: bun run build
 
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.2.13"
-
-      - run: bun install --frozen-lockfile
-      - run: bun test
-      - run: bun run build
+workflows:
+  backend-ci:
+    jobs:
+      - build
