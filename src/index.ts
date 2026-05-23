@@ -1,7 +1,10 @@
-import { routes } from "./routes/routes";
+import { app } from "./app.ts";
+
+const port = Number(process.env.PORT) || 3000;
 
 const server = Bun.serve({
-    routes,
+    port,
+    fetch: app.fetch,
 });
 
 console.log(`Server running at ${server.url}`);
