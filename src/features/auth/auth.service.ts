@@ -1,5 +1,5 @@
 import { config, isOAuthConfigured } from "../../shared/config.ts";
-import type { OAuthErrorResponse, OAuthTokenResponse } from "./auth.types.ts";
+import type { GitHubUser, OAuthErrorResponse, OAuthTokenResponse } from "./auth.types.ts";
 
 const GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
 const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
@@ -48,4 +48,30 @@ export async function exchangeCodeForToken(code: string): Promise<string> {
     }
 
     return data.access_token;
+}
+
+export async function fetchGitHubUser(accessToken: string): Promise<GitHubUser> {
+    const response = await fetch("https://api.github.com/user", {
+        headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+    });
+
+    if (!response.ok) {
+        throw Object.assign(new Error("Failed to fetch GitHub user"), { status: response.status });
+    }
+
+    const data = (await response.json()) as {
+        login: string;
+        id: number;
+        avatar_url: string;
+    };
+
+    return {
+        login: data.login,
+        id: data.id,
+        avatarUrl: data.avatar_url,
+    };
 }
