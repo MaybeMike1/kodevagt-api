@@ -13,8 +13,8 @@ const IGNORE_PREFIXES = [
     "src/features/ai/ollama.client.ts",
 ];
 
-const MIN_LINES = Number(process.env.COVERAGE_MIN_LINES ?? "0.75");
-const MIN_FUNCTIONS = Number(process.env.COVERAGE_MIN_FUNCTIONS ?? "0.75");
+const MIN_LINES = Number(process.env.COVERAGE_MIN_LINES ?? "0.80");
+const MIN_FUNCTIONS = Number(process.env.COVERAGE_MIN_FUNCTIONS ?? "0.85");
 
 type Totals = { linesFound: number; linesHit: number; funcsFound: number; funcsHit: number };
 

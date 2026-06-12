@@ -10,14 +10,12 @@ jobs:
           name: Install dependencies
           command: bun install --frozen-lockfile
       - run:
-          name: Test
-          command: bun run test
-      - run:
-          name: test coverage
-          command: bun run test:coverage
-      - run:
-          name: check coverage
+          name: Test with coverage
           command: bun run test:coverage:check
+          environment:
+            GITHUB_TOKEN: test-token
+            VECTOR_STORE: memory
+            REVIEW_ASYNC: "false"
       - run:
           name: Build
           command: bun run build
