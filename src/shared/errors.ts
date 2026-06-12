@@ -8,8 +8,9 @@ export function errorResponse(message: string, status: number): Response {
     return Response.json(body, { status });
 }
 
-export function notFound(resource = "Resource"): Response {
-    return errorResponse(`${resource} not found`, 404);
+export function notFound(resource = "Resource", detail?: string): Response {
+    const message = detail ? `${resource} not found: ${detail}` : `${resource} not found`;
+    return errorResponse(message, 404);
 }
 
 export function unauthorized(): Response {
