@@ -3,6 +3,8 @@
 coverageReporter = ["text", "lcov"]
 coverageDir = "coverage"
 coverageSkipTestFiles = true
+# Avoid cross-file races on global.fetch and shared singletons
+parallel = false
 # Ollama client is mocked in unit tests; LanceDB needs native backend
 coveragePathIgnorePatterns = [
   "src/index.ts",

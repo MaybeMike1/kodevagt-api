@@ -189,11 +189,13 @@ describe("indexing.service", () => {
     });
 
     test("getRepositoryIndexStatus rebuilds meta from vector store", async () => {
+        const owner = "status-only";
+        const repo = "isolated-repo";
         const store = new MemoryVectorStore();
         await store.upsertChunks(
             buildCodeChunks({
-                owner: "octocat",
-                repo: "Hello-World",
+                owner,
+                repo,
                 ref: "main",
                 path: "src/a.ts",
                 fileSha: "x",
@@ -203,10 +205,11 @@ describe("indexing.service", () => {
         );
         resetVectorStoreForTests(store);
 
-        const status = await getRepositoryIndexStatus("octocat", "Hello-World", auth);
+        const status = await getRepositoryIndexStatus(owner, repo, auth);
         expect(status.status).toBe("ready");
         expect(status.chunkCount).toBe(1);
-        expect(getIndexMeta("octocat", "Hello-World", "main")?.status).toBe("ready");
+        expect(status.fileCount).toBe(1);
+        expect(getIndexMeta(owner, repo, "main")?.status).toBe("ready");
     });
 
     test("deleteRepositoryIndex clears chunks without auth when ref given", async () => {
