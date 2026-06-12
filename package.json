@@ -7,6 +7,8 @@
     "dev": "bun run src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target=bun",
     "test": "bun test",
+    "test:coverage": "bun test --coverage",
+    "test:coverage:check": "bun test --coverage && bun scripts/check-coverage.ts",
     "format": "biome format --write .",
     "lint": "biome lint .",
     "check": "biome check --write ."

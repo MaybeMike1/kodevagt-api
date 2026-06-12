@@ -13,6 +13,12 @@ jobs:
           name: Test
           command: bun run test
       - run:
+          name: test coverage
+          command: bun run test:coverage
+      - run:
+          name: check coverage
+          command: bun run test:coverage:check
+      - run:
           name: Build
           command: bun run build
 
