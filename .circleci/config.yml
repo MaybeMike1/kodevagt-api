@@ -9,7 +9,7 @@ jobs:
       - run:
           name: Install dependencies
           command: bun install --frozen-lockfile
-      -run:
+      - run:
           name: Test
           command: bun run test
       - run:
