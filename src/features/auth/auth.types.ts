@@ -8,3 +8,15 @@ export type OAuthErrorResponse = {
     error?: string;
     error_description?: string;
 };
+
+export type GitHubUser = {
+    login: string;
+    id: number;
+    avatarUrl: string;
+};
+
+export type DesktopExchangeResponse = {
+    accessToken: string;
+    tokenType: "bearer";
+    user: GitHubUser;
+};

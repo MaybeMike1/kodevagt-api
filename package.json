@@ -5,16 +5,21 @@
   "private": true,
   "scripts": {
     "dev": "bun run src/index.ts",
-    "build": "bun build src/index.ts --outdir dist",
-    "test": "bun test"
+    "build": "bun build src/index.ts --outdir dist --target=bun",
+    "test": "bun test",
+    "format": "biome format --write .",
+    "lint": "biome lint .",
+    "check": "biome check --write ."
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.0",
     "@types/bun": "latest"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "dependencies": {
+    "@lancedb/lancedb": "^0.29.0",
     "hono": "^4.12.22"
   }
 }
