@@ -13,7 +13,6 @@ jobs:
           name: Test with coverage
           command: bun run test:coverage:check
           environment:
-            GITHUB_TOKEN: test-token
             VECTOR_STORE: memory
             REVIEW_ASYNC: "false"
       - run:

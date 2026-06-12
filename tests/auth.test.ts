@@ -33,6 +33,7 @@ function installOAuthTokenMock() {
 
 describe("GitHub OAuth", () => {
     beforeEach(() => {
+        delete process.env.GITHUB_TOKEN;
         process.env.GITHUB_CLIENT_ID = "test-client-id";
         process.env.GITHUB_CLIENT_SECRET = "test-client-secret";
         process.env.GITHUB_OAUTH_REDIRECT_URI = "http://localhost:3000/auth/github/callback";
@@ -41,6 +42,7 @@ describe("GitHub OAuth", () => {
     });
 
     afterEach(() => {
+        delete process.env.GITHUB_TOKEN;
         delete process.env.GITHUB_CLIENT_ID;
         delete process.env.GITHUB_CLIENT_SECRET;
         delete process.env.GITHUB_OAUTH_REDIRECT_URI;

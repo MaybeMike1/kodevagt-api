@@ -34,6 +34,32 @@ import { installGitHubFetchMock } from "./support/github-api-mock.ts";
 
 const auth = { token: "test-token" };
 
+let restoreFetch: () => void;
+let tempDir: string;
+
+beforeAll(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "kodevagt-index-"));
+    process.env.GITHUB_TOKEN = "test-token";
+    process.env.VECTOR_STORE = "memory";
+    process.env.VECTOR_STORE_PATH = tempDir;
+    restoreFetch = installGitHubFetchMock();
+    resetVectorStoreForTests(new MemoryVectorStore());
+    resetIndexMetaForTests();
+});
+
+afterEach(() => {
+    resetIndexMetaForTests();
+    resetVectorStoreForTests(new MemoryVectorStore());
+});
+
+afterAll(async () => {
+    restoreFetch();
+    delete process.env.GITHUB_TOKEN;
+    delete process.env.VECTOR_STORE;
+    delete process.env.VECTOR_STORE_PATH;
+    await rm(tempDir, { recursive: true, force: true });
+});
+
 async function waitForIndexStatus(
     owner: string,
     repo: string,
@@ -56,32 +82,6 @@ async function waitForIndexStatus(
 }
 
 describe("Index routes", () => {
-    let restoreFetch: () => void;
-    let tempDir: string;
-
-    beforeAll(async () => {
-        tempDir = await mkdtemp(join(tmpdir(), "kodevagt-index-"));
-        process.env.GITHUB_TOKEN = "test-token";
-        process.env.VECTOR_STORE = "memory";
-        process.env.VECTOR_STORE_PATH = tempDir;
-        restoreFetch = installGitHubFetchMock();
-        resetVectorStoreForTests(new MemoryVectorStore());
-        resetIndexMetaForTests();
-    });
-
-    afterEach(() => {
-        resetIndexMetaForTests();
-        resetVectorStoreForTests(new MemoryVectorStore());
-    });
-
-    afterAll(async () => {
-        restoreFetch();
-        delete process.env.GITHUB_TOKEN;
-        delete process.env.VECTOR_STORE;
-        delete process.env.VECTOR_STORE_PATH;
-        await rm(tempDir, { recursive: true, force: true });
-    });
-
     test("GET /index/health returns ollama status", async () => {
         const res = await app.request("/index/health", {
             headers: { Authorization: "Bearer test-token" },
@@ -178,25 +178,6 @@ describe("Index routes", () => {
 });
 
 describe("indexing.service", () => {
-    let restoreFetch: () => void;
-
-    beforeAll(() => {
-        process.env.GITHUB_TOKEN = "test-token";
-        process.env.VECTOR_STORE = "memory";
-        restoreFetch = installGitHubFetchMock();
-    });
-
-    afterEach(() => {
-        resetIndexMetaForTests();
-        resetVectorStoreForTests(new MemoryVectorStore());
-    });
-
-    afterAll(() => {
-        restoreFetch();
-        delete process.env.GITHUB_TOKEN;
-        delete process.env.VECTOR_STORE;
-    });
-
     test("resolveDefaultRef uses explicit ref when provided", async () => {
         const ref = await resolveDefaultRef("octocat", "Hello-World", auth, "develop");
         expect(ref).toBe("develop");

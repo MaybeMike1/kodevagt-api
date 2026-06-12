@@ -223,7 +223,8 @@ function githubApiResponse(url: string): Response {
 }
 
 export function installGitHubFetchMock() {
-    const originalFetch = global.fetch;
+    const parentFetch = global.fetch;
+    fetchMockStack.push(parentFetch);
 
     const mockFetch = (
         input: Parameters<typeof fetch>[0],
@@ -233,14 +234,18 @@ export function installGitHubFetchMock() {
         if (url.startsWith("https://api.github.com")) {
             return Promise.resolve(githubApiResponse(url));
         }
-        return originalFetch(input, init);
+        return parentFetch(input, init);
     };
 
     global.fetch = Object.assign(mockFetch, {
-        preconnect: originalFetch.preconnect,
+        preconnect: parentFetch.preconnect,
     });
 
     return () => {
-        global.fetch = originalFetch;
+        fetchMockStack.pop();
+        global.fetch = fetchMockStack[fetchMockStack.length - 1] ?? baseFetch;
     };
 }
+
+const baseFetch = global.fetch;
+const fetchMockStack: typeof fetch[] = [];
