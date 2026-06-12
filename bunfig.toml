@@ -1,0 +1,15 @@
+[test]
+# Run: bun test --coverage  (or npm run test:coverage)
+coverageReporter = ["text", "lcov"]
+coverageDir = "coverage"
+coverageSkipTestFiles = true
+# Avoid cross-file races on global.fetch and shared singletons
+parallel = false
+# Ollama client is mocked in unit tests; LanceDB needs native backend
+coveragePathIgnorePatterns = [
+  "src/index.ts",
+  "src/features/vector/lancedb.store.ts",
+  "src/features/ai/ollama.client.ts",
+  "tests/**",
+]
+# Aggregate thresholds enforced by scripts/check-coverage.ts (bun's built-in threshold is per-file)

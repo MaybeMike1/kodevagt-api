@@ -1,9 +1,12 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { app } from "../src/app.ts";
 
-const originalFetch = global.fetch;
+let oauthMockRestore: (() => void) | null = null;
 
 function installOAuthTokenMock() {
+    oauthMockRestore?.();
+    const parentFetch = global.fetch;
+
     const mockFetch = (
         input: Parameters<typeof fetch>[0],
         init?: Parameters<typeof fetch>[1],
@@ -23,16 +26,22 @@ function installOAuthTokenMock() {
                 }),
             );
         }
-        return originalFetch(input, init);
+        return parentFetch(input, init);
     };
 
     global.fetch = Object.assign(mockFetch, {
-        preconnect: originalFetch.preconnect,
+        preconnect: parentFetch.preconnect,
     });
+
+    oauthMockRestore = () => {
+        global.fetch = parentFetch;
+        oauthMockRestore = null;
+    };
 }
 
 describe("GitHub OAuth", () => {
     beforeEach(() => {
+        delete process.env.GITHUB_TOKEN;
         process.env.GITHUB_CLIENT_ID = "test-client-id";
         process.env.GITHUB_CLIENT_SECRET = "test-client-secret";
         process.env.GITHUB_OAUTH_REDIRECT_URI = "http://localhost:3000/auth/github/callback";
@@ -41,12 +50,13 @@ describe("GitHub OAuth", () => {
     });
 
     afterEach(() => {
+        oauthMockRestore?.();
+        delete process.env.GITHUB_TOKEN;
         delete process.env.GITHUB_CLIENT_ID;
         delete process.env.GITHUB_CLIENT_SECRET;
         delete process.env.GITHUB_OAUTH_REDIRECT_URI;
         delete process.env.GITHUB_OAUTH_FRONTEND_REDIRECT_URI;
         delete process.env.GITHUB_OAUTH_DESKTOP_REDIRECT_URI;
-        global.fetch = originalFetch;
     });
 
     test("GET /auth/github redirecter til GitHub authorize URL (web)", async () => {

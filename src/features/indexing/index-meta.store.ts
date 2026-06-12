@@ -29,6 +29,11 @@ export function deleteIndexMeta(owner: string, repo: string, ref: string): void 
     metaMap.delete(key(owner, repo, ref));
 }
 
+/** Test helper */
+export function resetIndexMetaForTests(): void {
+    metaMap.clear();
+}
+
 export async function loadIndexMeta(
     owner: string,
     repo: string,

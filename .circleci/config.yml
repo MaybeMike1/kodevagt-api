@@ -13,6 +13,12 @@ jobs:
           name: Test
           command: bun run test
       - run:
+          name: Test with coverage
+          command: bun run test:coverage
+          environment:
+            VECTOR_STORE: memory
+            REVIEW_ASYNC: "false"
+      - run:
           name: Build
           command: bun run build
 
