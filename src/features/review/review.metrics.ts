@@ -2,6 +2,7 @@ import type { PullRequestFile } from "../github/github.types.ts";
 import type {
     FindingValidation,
     GeneratorFinding,
+    QualityTier,
     ReviewFinding,
     ReviewMetrics,
     VerifierVerdict,
@@ -87,9 +88,11 @@ export function adjustFindingConfidence(
         confidence = Math.min(1, confidence + 0.06);
     }
     if (validation?.verdict === "supported") {
-        confidence = Math.min(1, Math.max(confidence, 0.75));
+        confidence = Math.min(1, Math.max(confidence, 0.85));
     } else if (validation?.verdict === "partial") {
-        confidence = Math.min(1, Math.max(confidence, 0.62));
+        confidence = Math.min(1, Math.max(confidence, citationValid ? 0.78 : 0.62));
+    } else if (validation?.verdict === "unsupported") {
+        confidence = Math.min(confidence, 0.55);
     } else if (validation?.verdict === "hallucinated") {
         confidence = Math.min(confidence, 0.35);
     }
@@ -110,6 +113,98 @@ export function computeAccuracyScore(
     const verifierPart = 0.5 * (validation?.confidence ?? 0.5) * verdictWeight;
     const citationPart = 0.1 * (citationValid ? 1 : 0);
     return Math.min(1, Math.max(0, generatorPart + verifierPart + citationPart));
+}
+
+function passesEvidenceGate(
+    f: ReviewFinding,
+    options: { requireSupported: boolean; verifierRan: boolean },
+): boolean {
+    if (f.validation?.verdict === "hallucinated") return false;
+    if (!f.citationValid || !f.file) return false;
+    if (!options.requireSupported) {
+        return f.validation?.verdict !== "unsupported";
+    }
+    if (options.verifierRan) {
+        return (
+            f.validation?.verdict === "supported" ||
+            f.validation?.verdict === "partial"
+        );
+    }
+    return true;
+}
+
+export function selectFindingsForResponse(
+    findings: ReviewFinding[],
+    options: {
+        targetConfidence: number;
+        minConfidence: number;
+        requireSupported: boolean;
+        verifierRan: boolean;
+        allowFallback: boolean;
+        maxResults?: number;
+    },
+): { findings: ReviewFinding[]; tier: QualityTier } {
+    const max = options.maxResults ?? findings.length;
+    if (options.minConfidence <= 0 && options.targetConfidence <= 0) {
+        return { findings: findings.slice(0, max), tier: "none" };
+    }
+
+    const notHallucinated = findings.filter((f) => f.validation?.verdict !== "hallucinated");
+
+    if (options.targetConfidence > 0) {
+        const strict = notHallucinated.filter(
+            (f) =>
+                f.confidence >= options.targetConfidence &&
+                passesEvidenceGate(f, options),
+        );
+        if (strict.length > 0) {
+            return { findings: strict.slice(0, max), tier: "strict" };
+        }
+    }
+
+    if (options.minConfidence > 0) {
+        const relaxed = notHallucinated.filter(
+            (f) =>
+                f.confidence >= options.minConfidence &&
+                passesEvidenceGate(f, options),
+        );
+        if (relaxed.length > 0) {
+            return { findings: relaxed.slice(0, max), tier: "relaxed" };
+        }
+    }
+
+    if (options.allowFallback) {
+        const bestEffort = [...notHallucinated]
+            .filter((f) => f.citationValid && f.file && f.confidence >= 0.55)
+            .sort((a, b) => b.confidence - a.confidence)
+            .slice(0, Math.min(max, 5));
+        if (bestEffort.length > 0) {
+            return { findings: bestEffort, tier: "best-effort" };
+        }
+    }
+
+    return { findings: [], tier: "none" };
+}
+
+/** @deprecated Use selectFindingsForResponse for tiered fallback. */
+export function filterFindingsByQuality(
+    findings: ReviewFinding[],
+    options: {
+        minConfidence: number;
+        requireSupported: boolean;
+        verifierRan: boolean;
+    },
+): ReviewFinding[] {
+    if (options.minConfidence <= 0) return findings;
+
+    return findings.filter((f) => {
+        if (f.confidence < options.minConfidence) return false;
+        if (!options.requireSupported) return true;
+        if (options.verifierRan) {
+            return f.validation?.verdict === "supported";
+        }
+        return f.citationValid && Boolean(f.file);
+    });
 }
 
 export function mergeFindingsWithValidations(

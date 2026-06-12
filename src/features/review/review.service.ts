@@ -17,6 +17,7 @@ import { runGenerator } from "./review.generator.ts";
 import { deduplicateFindings } from "./review.dedup.ts";
 import {
     computeReviewMetrics,
+    selectFindingsForResponse,
     mergeFindingsWithValidations,
 } from "./review.metrics.ts";
 import { deriveFindingTitle } from "./review.titles.ts";
@@ -123,12 +124,35 @@ export async function runPullRequestReview(params: {
         : { validations: [] };
     const verifierMs = Math.round(performance.now() - verifierStart);
 
-    const findings = mergeFindingsWithValidations(
+    const mergedFindings = mergeFindingsWithValidations(
         uniqueFindings,
         validations.validations,
         reviewFiles,
     );
+
+    const beforeFilter = mergedFindings.length;
+    const { findings, tier } = selectFindingsForResponse(mergedFindings, {
+        targetConfidence:
+            config.reviewMinConfidence <= 0 ? 0 : config.reviewTargetConfidence,
+        minConfidence: config.reviewMinConfidence,
+        requireSupported: config.reviewRequireSupported,
+        verifierRan: config.reviewVerifierEnabled,
+        allowFallback: config.reviewQualityFallback,
+        maxResults: config.reviewMaxFindings,
+    });
     const metrics = computeReviewMetrics(findings);
+
+    let summary = finalized.summary;
+    if (tier === "relaxed") {
+        summary = `${summary.trim()} Showing findings at ≥${Math.round(config.reviewMinConfidence * 100)}% confidence (strict ${Math.round(config.reviewTargetConfidence * 100)}% bar had no matches).`.trim();
+    } else if (tier === "best-effort") {
+        summary = `${summary.trim()} Only lower-confidence cited findings were available — consider a larger model or re-indexing for stronger reviews.`.trim();
+    } else if (beforeFilter > findings.length && findings.length > 0) {
+        const dropped = beforeFilter - findings.length;
+        summary = `${summary.trim()} ${dropped} weaker finding(s) were omitted.`.trim();
+    } else if (findings.length === 0 && beforeFilter > 0) {
+        summary = `${summary.trim()} All ${beforeFilter} candidate finding(s) were filtered out — check REVIEW_MIN_CONFIDENCE or disable REVIEW_VERIFIER_ENABLED for debugging.`.trim();
+    }
 
     const durationMs = Math.round(performance.now() - start);
 
@@ -145,6 +169,9 @@ export async function runPullRequestReview(params: {
             generatorMs,
             verifierMs,
             totalMs: durationMs,
+            qualityTier: tier,
+            candidatesBeforeFilter: beforeFilter,
+            findingsReturned: findings.length,
             retrieval: retrieval.debug?.latencyMs,
         });
     }
@@ -166,12 +193,15 @@ export async function runPullRequestReview(params: {
 
     return {
         reviewId: crypto.randomUUID(),
-        summary: finalized.summary,
+        summary,
         thoughtProcess: finalized.thoughtProcess,
         findings,
         metrics,
         context: reviewContext,
         usedFallback: generated.usedFallback || finalized.usedFallback,
+        qualityTier: tier,
+        candidatesBeforeFilter: beforeFilter,
+        headSha: pr.headSha,
         model: config.ollamaChatModel,
         verifierModel: config.ollamaVerifierModel,
         indexedRef: ref,

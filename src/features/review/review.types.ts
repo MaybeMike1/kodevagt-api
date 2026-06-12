@@ -1,5 +1,7 @@
 import type { RetrievalDebugPayload } from "../retrieval/retrieval.types.ts";
 
+export type QualityTier = "strict" | "relaxed" | "best-effort" | "none";
+
 export type ReviewSeverity = "info" | "suggestion" | "warning" | "critical";
 export type VerifierVerdict = "supported" | "partial" | "unsupported" | "hallucinated";
 
@@ -62,9 +64,27 @@ export type ReviewResult = {
     context: ReviewContextStats;
     /** True when findings were synthesized because the model returned none. */
     usedFallback?: boolean;
+    qualityTier?: QualityTier;
+    candidatesBeforeFilter?: number;
+    headSha?: string;
+    fromCache?: boolean;
     model: string;
     verifierModel: string;
     indexedRef: string;
     durationMs: number;
     retrievalDebug?: RetrievalDebugPayload;
+};
+
+export type ReviewJobResponse = {
+    jobId: string;
+    status: "pending" | "running" | "completed" | "failed";
+    pollUrl: string;
+    owner: string;
+    repo: string;
+    number: number;
+    headSha?: string;
+    createdAt: string;
+    completedAt?: string;
+    error?: string;
+    result?: ReviewResult;
 };

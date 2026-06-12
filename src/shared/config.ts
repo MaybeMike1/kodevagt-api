@@ -174,6 +174,48 @@ export const config = {
     get reviewMaxFindings() {
         return Number(process.env.REVIEW_MAX_FINDINGS ?? "12");
     },
+    /**
+     * Target confidence for the strict tier (0 = skip strict tier).
+     * Default 0.8 — falls back to reviewMinConfidence when nothing passes.
+     */
+    get reviewTargetConfidence() {
+        const raw = process.env.REVIEW_TARGET_CONFIDENCE;
+        if (raw !== undefined) return Math.min(1, Math.max(0, Number(raw)));
+        return 0.8;
+    },
+    /**
+     * Minimum confidence for the relaxed tier. Set REVIEW_MIN_CONFIDENCE=0 to disable all filtering.
+     * Default 0.65.
+     */
+    get reviewMinConfidence() {
+        const raw = process.env.REVIEW_MIN_CONFIDENCE;
+        if (raw !== undefined) return Math.min(1, Math.max(0, Number(raw)));
+        return 0.65;
+    },
+    /**
+     * When true, strict tier prefers verifier "supported" (partial still allowed with valid citation).
+     */
+    get reviewRequireSupported() {
+        const raw = process.env.REVIEW_REQUIRE_SUPPORTED;
+        if (raw !== undefined) return raw !== "false";
+        return false;
+    },
+    /** When strict/relaxed tiers return nothing, include best cited findings (not hallucinated). */
+    get reviewQualityFallback() {
+        return process.env.REVIEW_QUALITY_FALLBACK !== "false";
+    },
+    /** When true, POST /review starts a background job (202) instead of blocking. */
+    get reviewAsyncDefault() {
+        return process.env.REVIEW_ASYNC !== "false";
+    },
+    /** Poll interval when waiting on a review job (sync client helper). */
+    get reviewJobPollIntervalMs() {
+        return Number(process.env.REVIEW_JOB_POLL_MS ?? "1500");
+    },
+    /** Max wait for sync helper / client polling. */
+    get reviewJobMaxWaitMs() {
+        return Number(process.env.REVIEW_JOB_MAX_WAIT_MS ?? "240000");
+    },
     get embeddingDimensions() {
         return Number(process.env.EMBEDDING_DIMENSIONS ?? "768");
     },

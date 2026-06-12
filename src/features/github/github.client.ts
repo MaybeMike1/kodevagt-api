@@ -131,7 +131,7 @@ function mapPullRequestListItem(data: {
     created_at: string;
     updated_at: string;
     user: { login: string; avatar_url: string };
-    head: { ref: string };
+    head: { ref: string; sha?: string };
     base: { ref: string };
     draft?: boolean;
 }): PullRequestListItem {
@@ -180,7 +180,7 @@ export async function listPullRequests(
             created_at: string;
             updated_at: string;
             user: { login: string; avatar_url: string };
-            head: { ref: string };
+            head: { ref: string; sha?: string };
             base: { ref: string };
             draft?: boolean;
         }>
@@ -205,7 +205,7 @@ function mapPullRequestDetail(data: {
     updated_at: string;
     html_url: string;
     user: { login: string; avatar_url: string };
-    head: { ref: string };
+    head: { ref: string; sha?: string };
     base: { ref: string };
     draft?: boolean;
     additions: number;
@@ -228,6 +228,7 @@ function mapPullRequestDetail(data: {
             avatarUrl: data.user.avatar_url,
         },
         headRef: data.head.ref,
+        headSha: data.head.sha ?? "",
         baseRef: data.base.ref,
         draft: data.draft,
         additions: data.additions,
@@ -294,7 +295,7 @@ export async function getPullRequest(
         updated_at: string;
         html_url: string;
         user: { login: string; avatar_url: string };
-        head: { ref: string };
+        head: { ref: string; sha?: string };
         base: { ref: string };
         draft?: boolean;
         additions: number;

@@ -1,7 +1,9 @@
 import { Hono } from "hono";
 import { ollamaHealth } from "../ai/ollama.client.ts";
 import { githubAuthMiddleware } from "../../shared/github-auth.middleware.ts";
+import { errorResponse } from "../../shared/errors.ts";
 import type { AppVariables } from "../../shared/hono-context.ts";
+import { validateOwnerRepo } from "../../shared/validate.ts";
 import {
     deleteRepositoryIndex,
     getRepositoryIndexStatus,
@@ -19,6 +21,9 @@ indexApp.get("/health", async (c) => {
 
 indexApp.post("/repos/:owner/:repo", async (c) => {
     const { owner, repo } = c.req.param();
+    const slugError = validateOwnerRepo(owner, repo);
+    if (slugError) return errorResponse(slugError, 400);
+
     const ref = c.req.query("ref");
     const auth = { token: c.get("githubToken") };
 
@@ -27,12 +32,15 @@ indexApp.post("/repos/:owner/:repo", async (c) => {
         return c.json(meta, 202);
     } catch (err) {
         const message = err instanceof Error ? err.message : "Index failed";
-        return c.json({ error: message, status: 500 }, 500);
+        return errorResponse(message, 500);
     }
 });
 
 indexApp.get("/repos/:owner/:repo/status", async (c) => {
     const { owner, repo } = c.req.param();
+    const slugError = validateOwnerRepo(owner, repo);
+    if (slugError) return errorResponse(slugError, 400);
+
     const ref = c.req.query("ref");
     const auth = { token: c.get("githubToken") };
 
@@ -41,12 +49,15 @@ indexApp.get("/repos/:owner/:repo/status", async (c) => {
         return c.json(meta);
     } catch (err) {
         const message = err instanceof Error ? err.message : "Status failed";
-        return c.json({ error: message, status: 500 }, 500);
+        return errorResponse(message, 500);
     }
 });
 
 indexApp.delete("/repos/:owner/:repo", async (c) => {
     const { owner, repo } = c.req.param();
+    const slugError = validateOwnerRepo(owner, repo);
+    if (slugError) return errorResponse(slugError, 400);
+
     const ref = c.req.query("ref");
     const auth = { token: c.get("githubToken") };
 
@@ -55,6 +66,6 @@ indexApp.delete("/repos/:owner/:repo", async (c) => {
         return c.json({ ok: true });
     } catch (err) {
         const message = err instanceof Error ? err.message : "Delete failed";
-        return c.json({ error: message, status: 500 }, 500);
+        return errorResponse(message, 500);
     }
 });
