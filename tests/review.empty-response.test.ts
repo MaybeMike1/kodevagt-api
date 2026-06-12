@@ -27,6 +27,8 @@ describe("Review empty model response", () => {
     beforeAll(async () => {
         process.env.GITHUB_TOKEN = "test-token";
         process.env.VECTOR_STORE = "memory";
+        process.env.REVIEW_MIN_CONFIDENCE = "0";
+        process.env.REVIEW_ASYNC = "false";
         restoreFetch = installGitHubFetchMock();
 
         const store = new MemoryVectorStore();
@@ -57,6 +59,8 @@ describe("Review empty model response", () => {
         restoreFetch();
         delete process.env.GITHUB_TOKEN;
         delete process.env.VECTOR_STORE;
+        delete process.env.REVIEW_MIN_CONFIDENCE;
+        delete process.env.REVIEW_ASYNC;
     });
 
     test("POST /review still returns summary, findings, and context", async () => {

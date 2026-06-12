@@ -3,6 +3,7 @@ import type { RetrievalSelected } from "../retrieval/retrieval.types.ts";
 import type { ReviewContextStats } from "./review.fallback.ts";
 
 export function buildGeneratorSystemPrompt(minFindings: number): string {
+    const maxFindings = Math.min(minFindings + 2, 6);
     return `You are an expert code reviewer. Respond with JSON only, no markdown fences.
 
 Required JSON shape:
@@ -13,24 +14,28 @@ Required JSON shape:
     {
       "id": "f1",
       "severity": "info|suggestion|warning|critical",
-      "file": "repo-relative path when applicable",
-      "line": 0,
-      "title": "short title",
-      "body": "actionable explanation",
-      "confidence": 0.0
+      "file": "repo-relative path",
+      "line": 123,
+      "title": "short specific title",
+      "body": "2+ sentences: what changed, why it matters, suggested fix",
+      "confidence": 0.85
     }
   ]
 }
 
 Rules:
-- Return ${minFindings} to ${Math.min(minFindings + 2, 8)} findings for this batch (quality over quantity).
-- Every finding MUST have: non-empty "body" (at least 2 sentences, 40+ characters), a specific "title" (never the word "Finding"), and "file" when about one file.
-- Do NOT emit placeholder findings with empty body or generic titles.
-- Each finding must be distinct — never repeat the same issue, file, or line.
-- Cover different files or concerns; one finding per unique problem.
-- Review security, correctness, error handling, tests, API breaks, and maintainability.
-- When an inline diff is provided, cite specific files/lines from that diff.
-- When the diff says "patch too large or unavailable", still review using file path, stats, RAG context, and PR description — use lower confidence (0.3-0.5).`;
+- Return ${Math.min(minFindings, 3)} to ${maxFindings} findings — prefer fewer strong findings over filler.
+- Every finding MUST include "file" and a non-empty "body" (40+ chars). Never use title "Finding".
+- Each finding must be distinct (different file or different issue).
+- Quote or reference specific diff lines in the body when a patch is provided.
+
+Confidence rubric (use honestly):
+- 0.88–0.95: issue is on a specific added/removed line you can point to in the diff
+- 0.78–0.87: file and hunk are clear but line number may be approximate
+- 0.65–0.77: concern is plausible from file path + RAG context, patch truncated or missing
+- below 0.65: do not emit — omit instead of guessing
+
+Focus on: security, correctness, error handling, breaking API changes, missing tests, and maintainability.`;
 }
 
 export function patchCharLimitForBatch(fileCount: number): number {
@@ -72,6 +77,7 @@ export function buildGeneratorUserPrompt(params: {
         .join("\n\n");
 
     const batchHeader = params.batchNote ? `\n${params.batchNote}\n` : "";
+    const findingCount = Math.min(Math.max(params.stats.changedFiles, 1), 4);
 
     return `PR #${params.pr.number}: ${params.pr.title}
 Base: ${params.pr.baseRef} ← Head: ${params.pr.headRef}
@@ -89,13 +95,14 @@ ${fileBlocks || "(none)"}
 Related repository context (RAG):
 ${ragBlock || "(none)"}
 
-Produce ${Math.min(Math.max(params.stats.changedFiles, 1), 6)} distinct substantive findings for the files in this batch only — no duplicates across findings.`;
+Produce ${findingCount} distinct findings for this batch. Each finding must cite a file from above and set confidence using the rubric.`;
 }
 
 export function buildStrictRetryPrompt(baseUserPrompt: string, minFindings: number): string {
     return `${baseUserPrompt}
 
-IMPORTANT: Your previous response had no findings. Return valid JSON with at least ${minFindings} findings — one per major changed file or concern.`;
+IMPORTANT: Your previous response had no usable findings. Return valid JSON with ${Math.min(minFindings, 3)} findings.
+Each must have file, body (2 sentences), title, and confidence ≥ 0.78 citing diff evidence.`;
 }
 
 export function buildVerifierSystemPrompt(): string {
@@ -112,10 +119,12 @@ Schema:
   ]
 }
 Rules:
-- supported: claim is clearly backed by the patch or RAG snippet
-- partial: partly true or missing context
-- unsupported: no evidence in provided material
-- hallucinated: cites non-existent file/line or invented issue`;
+- supported: claim matches visible added/removed lines or clear hunk context in the patch
+- partial: file is in the PR and the concern is plausible from the diff or RAG, even if line is off by a few lines
+- unsupported: no related change in the provided patches for that file
+- hallucinated: cites a file not in the PR or invents code that does not appear in the diff
+- Prefer partial over unsupported when the file changed and the issue type fits the diff (e.g. error handling, naming, logic).
+- Score every finding; do not omit ids.`;
 }
 
 export function buildVerifierUserPrompt(params: {

@@ -46,8 +46,8 @@ export function deriveFindingTitle(
 export function defaultFindingConfidence(
     f: Pick<GeneratorFinding, "file" | "line" | "body">,
 ): number {
-    if (f.file && f.line !== undefined) return 0.68;
-    if (f.file) return 0.6;
+    if (f.file && f.line !== undefined) return 0.75;
+    if (f.file) return 0.68;
     if (f.body.trim().length >= 40) return 0.55;
     return 0.48;
 }

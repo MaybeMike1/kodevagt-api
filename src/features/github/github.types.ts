@@ -165,6 +165,7 @@ export type PullRequestDetail = {
         avatarUrl: string;
     };
     headRef: string;
+    headSha: string;
     baseRef: string;
     draft?: boolean;
     additions: number;

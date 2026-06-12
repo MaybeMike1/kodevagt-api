@@ -34,7 +34,7 @@ mock.module("../src/features/ai/ollama.client.ts", () => ({
                     file: "README.md",
                     title: "Consider docs",
                     body: "Update README for new behavior.",
-                    confidence: 0.75,
+                    confidence: 0.85,
                 },
             ],
         });
@@ -54,6 +54,7 @@ describe("Review routes", () => {
     beforeAll(async () => {
         process.env.GITHUB_TOKEN = "test-token";
         process.env.VECTOR_STORE = "memory";
+        process.env.REVIEW_ASYNC = "false";
         restoreFetch = installGitHubFetchMock();
 
         const store = new MemoryVectorStore();
@@ -84,6 +85,7 @@ describe("Review routes", () => {
         restoreFetch();
         delete process.env.GITHUB_TOKEN;
         delete process.env.VECTOR_STORE;
+        delete process.env.REVIEW_ASYNC;
     });
 
     test("GET /review/health returns ollama status", async () => {
@@ -103,6 +105,14 @@ describe("Review routes", () => {
         expect(res.status).toBe(409);
     });
 
+    test("POST /review rejects Undefined repo slug", async () => {
+        const res = await app.request("/review/repos/MaybeMike1/Undefined/pulls/1", {
+            method: "POST",
+            headers: { Authorization: "Bearer test-token" },
+        });
+        expect(res.status).toBe(400);
+    });
+
     test("POST /review runs two-pass review when indexed", async () => {
         const res = await app.request("/review/repos/octocat/Hello-World/pulls/42", {
             method: "POST",
@@ -112,13 +122,14 @@ describe("Review routes", () => {
         const body = (await res.json()) as {
             summary: string;
             thoughtProcess: string;
-            findings: Array<{ id: string; accuracyScore: number }>;
+            findings: Array<{ id: string; confidence: number; accuracyScore: number }>;
             metrics: { findingCount: number; overallAccuracy: number };
         };
         expect(body.summary).toContain("suggestion");
         expect(body.thoughtProcess).toContain("Checked");
         expect(body.findings).toHaveLength(1);
         expect(body.metrics.findingCount).toBe(1);
+        expect(body.findings[0]?.confidence).toBeGreaterThanOrEqual(0.8);
         expect(body.findings[0]?.accuracyScore).toBeGreaterThan(0);
     });
 });

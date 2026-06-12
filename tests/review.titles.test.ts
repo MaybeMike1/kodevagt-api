@@ -35,6 +35,6 @@ describe("review.titles", () => {
                 body: "Long enough body for a substantive review note here.",
             }),
         ).toBeGreaterThan(0.5);
-        expect(defaultFindingConfidence({ file: "a.ts", body: "" })).toBe(0.6);
+        expect(defaultFindingConfidence({ file: "a.ts", body: "" })).toBe(0.68);
     });
 });

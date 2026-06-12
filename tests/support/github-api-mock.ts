@@ -54,7 +54,7 @@ export const GITHUB_PULL_DETAIL = {
         login: "octocat",
         avatar_url: "https://github.com/images/error/octocat_happy.gif",
     },
-    head: { ref: "feature-branch" },
+    head: { ref: "feature-branch", sha: "abc123def456789012345678901234567890abcd" },
     base: { ref: "main" },
     draft: false,
     additions: 24,
